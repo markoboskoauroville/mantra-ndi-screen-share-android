@@ -64,6 +64,7 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────
       - name: Fetch the NDI Advanced SDK (read-only deploy key)
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SDK_DEPLOY_KEY: ${{ secrets.NDI_SDK_DEPLOY_KEY }}
         run: |
           set -euo pipefail
@@ -85,9 +86,40 @@ jobs:
           #
           # api.github.com/meta publishes the current keys, and curl validates
           # the TLS certificate before we read a byte. Authenticated AND current.
-          curl -fsSL https://api.github.com/meta \
+          #
+          # WITH THE RUNNER'S TOKEN, AND WITH RETRIES. Unauthenticated calls to
+          # api.github.com are rate limited per IP, and a runner shares its IP
+          # with every other job on the same host. On 21.9.2026 the third push
+          # of the evening got 403 here, the empty body went into python, and
+          # the build died on a JSONDecodeError - a failure with nothing
+          # whatever to do with the code, in the step that is supposed to make
+          # the build trustworthy.
+          META=""
+          for attempt in 1 2 3 4 5; do
+            if META=$(curl -fsSL \
+                  -H "Authorization: Bearer $GITHUB_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  https://api.github.com/meta); then
+              break
+            fi
+            echo "api.github.com/meta refused (attempt $attempt), waiting"
+            sleep $((attempt * 5))
+            META=""
+          done
+
+          if [ -z "$META" ]; then
+            echo "::error::could not read GitHub's host keys from api.github.com/meta"
+            exit 1
+          fi
+
+          printf '%s' "$META" \
             | python3 -c "import sys,json;[print('github.com',k) for k in json.load(sys.stdin)['ssh_keys']]" \
             >> ~/.ssh/known_hosts
+
+          # Prove it worked here rather than let the clone fail with a message
+          # about permissions, which is what an empty known_hosts looks like.
+          grep -q '^github.com ' ~/.ssh/known_hosts \
+            || { echo "::error::no github.com host key was written"; exit 1; }
 
           # NO 2>/dev/null ON THE CLONE. It was suppressed before, so a refused
           # key produced no message here and the build died at the `cp` below
