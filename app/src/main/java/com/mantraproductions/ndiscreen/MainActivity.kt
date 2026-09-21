@@ -372,7 +372,18 @@ class MainActivity : AppCompatActivity() {
         // changing them mid-share would describe a stream that is not the one
         // going out.
         setActive(!s.running, ui.sourceName, ui.mode, ui.cap, ui.fps)
-        if (!s.running) refreshDerived()
-        else setActive(false, ui.codecLabel, ui.codec, ui.qualityLabel, ui.quality)
+        if (!s.running) {
+            refreshDerived()
+        } else {
+            setActive(false, ui.codecLabel, ui.codec, ui.qualityLabel, ui.quality)
+            // While a share is running the estimate must follow the share, not
+            // the last time somebody touched a control. It was computed from
+            // screenSize() when the screen was last built, so after the phone
+            // was turned it sat there describing the shape that is no longer
+            // being sent - disagreeing with the live line directly beneath it.
+            ui.estimate.text =
+                "${s.width} × ${s.height} ${s.orientation.name.lowercase()} @ ${s.fps}" +
+                    "   ${Mechanism.megabits(s.measuredBitsPerSecond)} now"
+        }
     }
 }

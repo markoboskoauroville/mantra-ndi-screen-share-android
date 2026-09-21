@@ -295,6 +295,28 @@ def main():
           read("app/src/main/AndroidManifest.xml"))
     check("G16 the dialog holder asks once", "savedInstanceState == null" in tile_activity)
 
+    # ---------------------------------------------------------------- G17
+    # ONE VirtualDisplay per MediaProjection. From Android 14 a second one on
+    # the same projection throws SecurityException, and the share dies on the
+    # first turn of the phone - which is what happened on Marko's Pixel 7 on
+    # 21.9.2026. The symptom is cruel: the NDI sender is kept across a rebuild
+    # on purpose, so the source stays in every receiver's list while sending
+    # nothing, and it reads as a broken receiver.
+    check("G17 createVirtualDisplay is called exactly once",
+          service.count("createVirtualDisplay(") == 1,
+          f"{service.count('createVirtualDisplay(')} calls")
+    check("G17 a rotation resizes the display instead of remaking it",
+          ".resize(" in service and "existing.surface" in service)
+    # tearDownPipeline runs on every rotation; if it releases the display there
+    # is nothing left to resize and the next createVirtualDisplay throws.
+    teardown = service[service.index("private fun tearDownPipeline"):]
+    teardown = teardown[:teardown.index("private fun releaseDisplay")]
+    check("G17 the rotation teardown leaves the display alone",
+          "release()" not in teardown and "display" not in teardown,
+          "tearDownPipeline still touches the display")
+    check("G17 the display is released when the share ends",
+          "releaseDisplay()" in service[service.index("private fun stopEverything"):])
+
     # ---------------------------------------------------------------- G14
     # The APK is not delivered until it is downloadable, and the link is the
     # first thing in the README, not the last.

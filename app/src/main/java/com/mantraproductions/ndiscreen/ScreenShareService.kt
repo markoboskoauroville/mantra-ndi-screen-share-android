@@ -253,6 +253,50 @@ class ScreenShareService : Service() {
         }
         pipeline = built
 
+        // ONE VIRTUAL DISPLAY, FOR THE LIFE OF THE PROJECTION.
+        //
+        // From Android 14 a MediaProjection may create exactly one
+        // VirtualDisplay, ever. Releasing it and making another on the same
+        // projection - which is what a turn of the phone used to do - throws
+        //
+        //   SecurityException: Don't take multiple captures by invoking
+        //   MediaProjection#createVirtualDisplay multiple times on the same
+        //   instance.
+        //
+        // and the share died on the first rotation. Marko, 21.9.2026, from his
+        // real Pixel 7: "it works only when I change the orientation of the
+        // screen. The streaming is stopping." The source stayed advertised
+        // because the NDI sender is deliberately kept across a rebuild, so from
+        // the outside it looked like a receiver problem rather than a dead
+        // sender - which is exactly how it was first reported.
+        //
+        // The supported way to follow a rotation is to keep the display and
+        // change it: resize it, then point it at the new encoder's surface.
+        val existing = display
+        if (existing != null) {
+            val ok = try {
+                // Detached first. Resizing a display that is still writing into
+                // the surface of an encoder that is about to be released is a
+                // race with a dequeued buffer, and it takes the media server
+                // with it when it loses.
+                existing.surface = null
+                existing.resize(p.width, p.height, densityDpi())
+                existing.surface = built.surface
+                true
+            } catch (t: Throwable) {
+                Trace.fault("virtual display resize", t)
+                false
+            }
+            if (!ok) {
+                built.stop()
+                pipeline = null
+                failAndStop("the virtual display would not resize to ${p.width}×${p.height}")
+                return false
+            }
+            Trace.step("virtual display resized to ${p.width}x${p.height} at ${densityDpi()} dpi")
+            return true
+        }
+
         display = try {
             projection?.createVirtualDisplay(
                 "mantra-ndi-screen",
@@ -280,11 +324,23 @@ class ScreenShareService : Service() {
         return true
     }
 
+    /**
+     * Stops the encoder. **Does not touch the virtual display**, which outlives
+     * every rebuild and is released only when the whole share ends - see the
+     * note in buildPipeline about Android 14.
+     */
     private fun tearDownPipeline() {
-        display?.release()
-        display = null
         pipeline?.stop()
         pipeline = null
+    }
+
+    /** The end of the share, and the only place the display is let go. */
+    private fun releaseDisplay() {
+        display?.let {
+            runCatching { it.surface = null }
+            runCatching { it.release() }
+        }
+        display = null
     }
 
     /**
@@ -354,6 +410,7 @@ class ScreenShareService : Service() {
         runCatching { displayManager.unregisterDisplayListener(displayListener) }
 
         tearDownPipeline()
+        releaseDisplay()
 
         projection?.let {
             runCatching { it.unregisterCallback(projectionCallback) }
