@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The tile's glyph: a screen with the signal going out of both sides of it.
+
+  Deliberately NOT the Cast icon, which is already three tiles away in Marko's
+  shade and is a screen with the waves tucked into one corner. This one is
+  symmetrical and centred, so the two are told apart at a glance and at the size
+  a tile actually draws them.
+
+  One colour and one colour only. Quick Settings tints the icon itself — white
+  on the lit tile, grey on the unlit one — and a drawable with its own colours
+  in it comes out as a solid blob when the system applies that tint.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFFFF">
+
+    <!-- The screen. -->
+    <path
+        android:pathData="M4.2,4 L19.8,4 A1.7,1.7 0 0 1 21.5,5.7 L21.5,15.3 A1.7,1.7 0 0 1 19.8,17 L4.2,17 A1.7,1.7 0 0 1 2.5,15.3 L2.5,5.7 A1.7,1.7 0 0 1 4.2,4 Z"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <!-- The stand, which is what makes the rectangle above read as a screen
+         rather than as a window or a card. -->
+    <path
+        android:pathData="M12,17 L12,20"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M8.3,20 L15.7,20"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+
+    <!-- The source. -->
+    <path
+        android:pathData="M10.6,10.5 A1.4,1.4 0 1 1 13.4,10.5 A1.4,1.4 0 1 1 10.6,10.5 Z"
+        android:fillColor="#FFFFFFFF" />
+
+    <!-- Two arcs each side. Quadratic curves rather than elliptical arcs
+         because an arc's sweep flag is the kind of thing that is wrong in one
+         renderer and right in another, and this has to be right on a phone. -->
+    <path
+        android:pathData="M9.9,8.0 Q7.2,10.5 9.9,13.0"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M7.7,6.3 Q3.6,10.5 7.7,14.7"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M14.1,8.0 Q16.8,10.5 14.1,13.0"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M16.3,6.3 Q20.4,10.5 16.3,14.7"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>

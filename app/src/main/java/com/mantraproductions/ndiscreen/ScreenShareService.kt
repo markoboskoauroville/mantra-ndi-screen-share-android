@@ -212,6 +212,11 @@ class ScreenShareService : Service() {
         main.postDelayed(poll, POLL_MS)
         main.postDelayed(refresh, REFRESH_INTERVAL_MS)
         publishStatus()
+        // The tile is told only here and in stopEverything, not from
+        // publishStatus: publishStatus runs once a second for the readouts, and
+        // asking SystemUI to redraw a tile once a second for a frame count it
+        // does not show would be a second of work a second for nothing.
+        NdiTileService.refresh(this)
     }
 
     override fun onDestroy() {
@@ -362,6 +367,11 @@ class ScreenShareService : Service() {
         plan = null
         publish(Status(running = false, fault = fault, address = address()))
         stopForeground(STOP_FOREGROUND_REMOVE)
+        // Every way a share can end passes through here — the tile, the
+        // notification, the one screen, the system's own "Stop sharing", a
+        // pipeline fault — so this is the single place the tile has to be told
+        // it went dark, and it cannot be left lit by any of them.
+        NdiTileService.refresh(this)
         Trace.step("share stopped")
     }
 

@@ -1,4 +1,4 @@
-package com.mantraproductions.ndi
+package com.mantraproductions.ndiscreen
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

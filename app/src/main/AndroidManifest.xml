@@ -53,9 +53,61 @@
             </intent-filter>
         </activity>
 
+        <!-- The dialog holder for the tile: transparent, no layout, finishes
+             itself. What the person sees is the system's capture dialog over
+             whatever app they were already in. Kept out of Recents because it
+             is a mechanism and not a place, and taskAffinity is empty so that
+             a tap from the shade never drags the one screen's task forward
+             with it. It takes a turn of the phone for the same reason
+             MainActivity does — being recreated mid-negotiation with the
+             capture dialog has been seen to lose the result. -->
+        <activity
+            android:name=".TileStartActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density"
+            android:theme="@style/Theme.NdiScreenShare.Invisible" />
+
         <service
             android:name=".ScreenShareService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <!-- The tile in the Quick Settings shade. exported and permission are
+             both required and neither is a choice: the tile is bound by
+             SystemUI, which is another process, and BIND_QUICK_SETTINGS_TILE is
+             what stops anything else binding it. -->
+        <service
+            android:name=".NdiTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_ndi"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <!-- ACTIVE_TILE, and it has to be true.
+                 requestListeningState() - the only way the app can ask for its
+                 own tile to be redrawn - is honoured for ACTIVE_TILE services
+                 and silently ignored for the others. With it false, the tile was
+                 drawn once and then never again: SystemUI keeps it "listening"
+                 across the tap that collapsed the shade, so onStartListening
+                 does not fire on the next open either, and the shade sat there
+                 saying "not sending" over a share that was on air. Nothing
+                 crashed and nothing logged; the tile was simply wrong.
+                 PROVEN on the emulator, 21.9.2026: with false, no
+                 "tile: listening" line appeared in the app's own trace when the
+                 shade was reopened mid-share. -->
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="true" />
+            <!-- Toggleable, so the tile can be tapped on the lock screen. It
+                 shows nothing private there, and stopping a share that should
+                 not be on air must not wait for a fingerprint. -->
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
     </application>
 </manifest>

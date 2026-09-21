@@ -18,7 +18,15 @@ val appVersion = (project.findProperty("appVersion") as String).toInt()
 // is a different app to Android, and every install after it is an uninstall
 // first. CI decodes it from secrets; without them a build is unsigned and the
 // workflow says so rather than quietly producing an uninstallable APK.
-val keystoreFile = rootProject.file("signing/mantra-ndi-screen-share.p12")
+// SIGNING_KEYSTORE lets the key be somewhere this repository cannot see, which
+// on this Mac is ~/.mantra-ndi-screen-share-signing. It has to be outside: G3
+// walks the working tree for *.p12 and fails the build if it finds one, and it
+// walks the filesystem rather than git on purpose, because "it is gitignored"
+// is exactly what someone says the day before the key is pushed. CI leaves this
+// unset and decodes the key into signing/ after the gates have already run, so
+// the line below is the same for CI as it always was.
+val keystoreFile = System.getenv("SIGNING_KEYSTORE")?.let { file(it) }
+    ?: rootProject.file("signing/mantra-ndi-screen-share.p12")
 val keystorePassword: String? = System.getenv("SIGNING_PASSWORD")
 
 android {

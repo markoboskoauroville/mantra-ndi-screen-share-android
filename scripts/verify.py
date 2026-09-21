@@ -13,6 +13,7 @@ stride computed rather than read — and each one fails at runtime, on the phone
 with no error anybody can read.
 """
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -71,9 +72,23 @@ def main():
     # ---------------------------------------------------------------- G4
     # The licensed SDK is never committed. Its licence forbids redistribution
     # and this repository is public.
-    sdk = list(ROOT.glob("app/src/main/jniLibs/**/*.so")) + \
-        list(ROOT.glob("app/src/main/cpp/ndi/**/*.h"))
-    check("G4 no NDI SDK in the tree", not sdk, f"{len(sdk)} files")
+    # TRACKED files, not files on disk. The licence forbids redistributing the
+    # SDK, and this repository is public — so what has to be true is that git
+    # never carries it, which is a different statement from "it is not on this
+    # machine". Checking the disk instead made the gate impossible to satisfy
+    # while developing: the SDK has to BE in app/src/main/cpp/ndi for Gradle to
+    # compile the bridge at all, so every local build failed its own gate and
+    # the only place anything could be built was CI.
+    try:
+        tracked = subprocess.run(
+            ["git", "ls-files", "app/src/main/jniLibs", "app/src/main/cpp/ndi"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.split()
+    except Exception:
+        # No git here — fall back to the disk, which is the stricter reading.
+        tracked = [str(x) for x in ROOT.glob("app/src/main/jniLibs/**/*.so")] + \
+            [str(x) for x in ROOT.glob("app/src/main/cpp/ndi/**/*.h")]
+    check("G4 no NDI SDK committed", not tracked, f"{len(tracked)} tracked files")
     check("G4 jniLibs ignored", "app/src/main/jniLibs/" in gitignore)
     check("G4 sdk headers ignored", "app/src/main/cpp/ndi/" in gitignore)
 
@@ -84,6 +99,19 @@ def main():
     check("G5 Test 1 exists", bool(test_files))
     cases = sum(len(re.findall(r"@Test", f.read_text())) for f in test_files)
     check("G5 Test 1 has a floor of cases", cases >= 40, f"{cases} cases")
+
+    # A test in the wrong package does not fail — it does not COMPILE, and a
+    # build that stops before testDebugUnitTest never finds out. TraceFormatTest
+    # sat in com.mantraproductions.ndi (no "screen") from the first commit, so
+    # 45 of the 78 tests had never once run, while the README counted them.
+    # Found by building on the desk, not by CI, because CI died at signing two
+    # steps earlier. LESSONS: a step that never ran is not a step that passed.
+    want = "package com.mantraproductions.ndiscreen"
+    strays = sorted(
+        f.name for f in (ROOT / "app/src/test/java/com/mantraproductions/ndiscreen").glob("*.kt")
+        if not f.read_text().startswith(want)
+    )
+    check("G5 every test is in the package it tests", not strays, str(strays))
 
     # ---------------------------------------------------------------- G6
     # THE GATE NOTHING ELSE CAN CATCH.
@@ -167,7 +195,14 @@ def main():
     # ---------------------------------------------------------------- G12
     # Every permission declared is used by code here. A permission no code uses
     # is a claim the app cannot back.
-    permissions = set(re.findall(r"android\.permission\.(\w+)", manifest))
+    #
+    # <uses-permission> only, and that is the whole point of the gate: it is
+    # about what the app ASKS FOR. A permission named in a component's own
+    # android:permission attribute is the opposite — a requirement placed on
+    # whoever wants to bind it, which is how the tile keeps anything but
+    # SystemUI out. Counting those as requests reads a lock as a key.
+    permissions = set(re.findall(
+        r"<uses-permission[^>]*android:name=\"android\.permission\.(\w+)\"", manifest))
     sources = "\n".join(p.read_text() for p in (ROOT / PKG).glob("*.kt"))
     used = {
         "INTERNET": "NdiSender",
@@ -184,12 +219,81 @@ def main():
                     if k in permissions and needle not in sources)
     check("G12 every declared permission is exercised", not unused, str(unused))
 
+    # ---------------------------------------------------------------- G12b
+    # The other half: the tile is bound by SystemUI, another process, and the
+    # bind permission is the only thing standing between it and any app on the
+    # phone being able to drive the screen share. Dropping that one attribute
+    # breaks nothing that can be seen or tested on the phone.
+    check("G12 the tile is bound only by SystemUI",
+          'android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"' in manifest)
+
     # ---------------------------------------------------------------- G13
     # The foreground service type, in both places it has to be.
     check("G13 service declares the mediaProjection type",
           'android:foregroundServiceType="mediaProjection"' in manifest)
     check("G13 startForeground passes the type on 34+",
           "FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION" in service)
+
+    # ---------------------------------------------------------------- G16
+    # The Quick Settings tile. Every one of these fails silently on the phone:
+    # the tile simply never appears in the shade's list, or appears and does
+    # nothing, and nothing anywhere says why.
+    tile = code_only(read(f"{PKG}/NdiTileService.kt"))
+    check("G16 the tile is declared to the shade",
+          "android.service.quicksettings.action.QS_TILE" in manifest)
+    check("G16 the tile service is exported",
+          re.search(r"<service[^>]*NdiTileService(.|\n)*?</service>", manifest) is not None
+          and 'android:name=".NdiTileService"' in manifest)
+    check("G16 the tile has an icon and a label",
+          "@drawable/ic_tile_ndi" in manifest and "@string/tile_label" in manifest)
+    # requestListeningState() is honoured for ACTIVE_TILE services and ignored
+    # for every other kind, with no error. Set this back to false and the tile
+    # stops being redrawn the moment it is tapped - it goes on saying "not
+    # sending" over a live share, and nothing anywhere complains.
+    active = re.search(
+        r'ACTIVE_TILE"\s*\n?\s*android:value="(\w+)"', manifest)
+    check("G16 the tile is an ACTIVE_TILE, or it can never be redrawn",
+          active is not None and active.group(1) == "true",
+          active.group(1) if active else "the meta-data is missing")
+
+    # A tile cannot show the capture dialog itself; it must hand over to an
+    # activity, and the shade must be told to close or the dialog opens behind
+    # it. Both halves, or the tap looks ignored.
+    check("G16 the tile hands the start to an activity",
+          "TileStartActivity" in tile)
+    check("G16 the tile closes the shade", "startActivityAndCollapse" in tile)
+    check("G16 the tile takes the 34+ PendingIntent branch",
+          "PendingIntent.getActivity" in tile and "SDK_INT >= 34" in tile)
+
+    # Stopping must not wait for a lock screen, and starting must. The two are
+    # easy to write the same way and the wrong one is only found on a phone
+    # with a fingerprint on it, at the moment something is wrongly on air.
+    click = tile[tile.index("fun onClick"):tile.index("fun onClick") + 600]
+    check("G16 starting waits for the lock screen", "unlockAndRun" in click)
+    check("G16 stopping does not wait for the lock screen",
+          "unlockAndRun" not in tile[tile.index("fun stopShare"):
+                                     tile.index("fun stopShare") + 600])
+
+    # The tile is drawn from the service's status and nothing else, and the
+    # service tells it on both transitions. Miss the stop one and the tile sits
+    # lit over a share that ended.
+    check("G16 the tile reads the service's status",
+          "ScreenShareService.status.running" in tile)
+    starts = service.count("NdiTileService.refresh")
+    check("G16 the service tells the tile it started and that it stopped",
+          starts >= 2, f"found {starts} refresh call(s)")
+    check("G16 the tile is not redrawn on every poll",
+          "NdiTileService.refresh" not in
+          service[service.index("private fun publishStatus"):
+                  service.index("private fun publishStatus") + 800])
+
+    # The transparent activity must finish itself on both answers, or a refusal
+    # leaves an invisible window in front of whatever he is streaming.
+    tile_activity = code_only(read(f"{PKG}/TileStartActivity.kt"))
+    check("G16 the dialog holder finishes itself",
+          tile_activity.count("finish()") >= 1 and "Theme.NdiScreenShare.Invisible" in
+          read("app/src/main/AndroidManifest.xml"))
+    check("G16 the dialog holder asks once", "savedInstanceState == null" in tile_activity)
 
     # ---------------------------------------------------------------- G14
     # The APK is not delivered until it is downloadable, and the link is the

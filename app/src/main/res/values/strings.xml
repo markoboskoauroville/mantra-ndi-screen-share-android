@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NDI Screen Share</string>
+
+    <!-- What the shade calls the tile. A tile gives a label about ten
+         characters before it puts an ellipsis on it — "NovaTV-W…" in Marko's
+         own screenshot is the Wi-Fi tile running out of room — so the full
+         "Mantra Streamer NDI" would arrive as "Mantra Str…". The source name
+         goes underneath as the subtitle instead, which is the part that tells
+         one phone in a room from another. -->
+    <string name="tile_label">Mantra NDI</string>
 </resources>

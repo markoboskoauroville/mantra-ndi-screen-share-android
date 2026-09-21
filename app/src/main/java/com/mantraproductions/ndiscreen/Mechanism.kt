@@ -250,10 +250,25 @@ object Mechanism {
     fun measuredBitsPerSecond(bytes: Long, elapsedMs: Long): Long =
         if (elapsedMs <= 0) 0 else bytes * 8 * 1000 / elapsedMs
 
-    fun round1(v: Double): String {
-        val scaled = kotlin.math.round(v * 10).toLong()
-        return "${scaled / 10}.${scaled % 10}"
-    }
+    /**
+     * One decimal place, rounded the way the number is read rather than the way
+     * it is stored.
+     *
+     * The obvious version — round(v * 10) / 10 — is wrong for the commonest
+     * case there is. 1.45 is not 1.45 in binary, it is 1.4499999999999999556,
+     * so v * 10 is 14.499999999999998, and round takes it DOWN: a rate of
+     * 1.45 Mbit/s was displayed as 1.4. Off by a tenth, always in the same
+     * direction, and invisible unless someone does the arithmetic by hand.
+     *
+     * BigDecimal over the number's own decimal text, HALF_UP, is the only way
+     * to round a decimal as a decimal. It also fixes a second thing the old
+     * line had: for a negative v, scaled % 10 is negative too, and it printed
+     * "-1.-5".
+     */
+    fun round1(v: Double): String =
+        java.math.BigDecimal(v.toString())
+            .setScale(1, java.math.RoundingMode.HALF_UP)
+            .toPlainString()
 
     /** `1080 × 1920 portrait` — the line the state panel shows. */
     fun describe(plan: Plan): String =

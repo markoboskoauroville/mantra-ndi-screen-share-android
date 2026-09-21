@@ -8,6 +8,19 @@
         <item name="android:textColor">@color/sand</item>
     </style>
 
+    <!-- TileStartActivity's theme: a window that is never seen. It exists only
+         to hold the system's capture dialog, so it has no background, no title
+         and no animation, and it does not dim what is behind it — the person
+         should see the app they were already in, with the dialog over it. -->
+    <style name="Theme.NdiScreenShare.Invisible" parent="Theme.NdiScreenShare">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
     <!-- A chip is the same shape checked or not; only the colour changes,
          because colour is the state channel (design-language.md §3). -->
     <style name="Chip">
