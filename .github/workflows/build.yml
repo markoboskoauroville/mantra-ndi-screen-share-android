@@ -47,23 +47,69 @@ jobs:
           echo "$KEYSTORE_B64" | base64 -d > signing/mantra-ndi-screen-share.p12
           echo "Key restored, $(stat -c%s signing/mantra-ndi-screen-share.p12) bytes"
 
+      # ─────────────────────────────────────────────────────────────────────
       # The SDK is licensed and confidential, so it lives in its own private
       # repository and is fetched here. It is never committed to this one.
-      - name: Fetch NDI Advanced SDK
+      #
+      # A READ-ONLY DEPLOY KEY, NOT A TOKEN, and the difference matters because
+      # this repository is PUBLIC. A personal access token carries whatever its
+      # owner can reach — on this account, push rights across every repository —
+      # and it would be sitting in the secret store of a public repo's CI. A
+      # deploy key is one keypair, on one repository, read-only, revocable by
+      # itself and useful for nothing else. If it leaks, the worst case is that
+      # somebody can read the SDK; with a token the worst case is the account.
+      #
+      # `gh repo deploy-key add` is read-only unless --allow-write is passed.
+      # It was not passed.
+      # ─────────────────────────────────────────────────────────────────────
+      - name: Fetch the NDI Advanced SDK (read-only deploy key)
         env:
-          SDK_TOKEN: ${{ secrets.NDI_SDK_TOKEN }}
+          SDK_DEPLOY_KEY: ${{ secrets.NDI_SDK_DEPLOY_KEY }}
         run: |
-          if [ -z "$SDK_TOKEN" ]; then
-            echo "::error::No NDI SDK token, this would build an app that cannot send."
+          set -euo pipefail
+          if [ -z "$SDK_DEPLOY_KEY" ]; then
+            echo "::error::No NDI SDK deploy key, this would build an app that cannot send."
             exit 1
           fi
-          git clone --depth 1 \
-            "https://x-access-token:$SDK_TOKEN@github.com/markoboskoauroville/mantra-ndi-sdk.git" \
-            /tmp/ndi-sdk 2>/dev/null
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SDK_DEPLOY_KEY" > ~/.ssh/ndi_sdk
+          chmod 600 ~/.ssh/ndi_sdk
+
+          # THE HOST KEY IS FETCHED FROM GITHUB RATHER THAN TRUSTED ON SIGHT.
+          #
+          # `ssh-keyscan github.com` is trust-on-first-use: it believes whatever
+          # answers, which on a compromised runner network is the wrong thing.
+          # Writing the key into this file instead would be authenticated, and
+          # would also be a copy that silently rots the day GitHub rotates it —
+          # and a rotation would then read as a build failure nobody can explain.
+          #
+          # api.github.com/meta publishes the current keys, and curl validates
+          # the TLS certificate before we read a byte. Authenticated AND current.
+          curl -fsSL https://api.github.com/meta \
+            | python3 -c "import sys,json;[print('github.com',k) for k in json.load(sys.stdin)['ssh_keys']]" \
+            >> ~/.ssh/known_hosts
+
+          # NO 2>/dev/null ON THE CLONE. It was suppressed before, so a refused
+          # key produced no message here and the build died at the `cp` below
+          # with "no such file" — which reads as a missing SDK rather than as a
+          # credential that was turned away.
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/ndi_sdk -o IdentitiesOnly=yes" \
+            git clone --depth 1 git@github.com:markoboskoauroville/mantra-ndi-sdk.git /tmp/ndi-sdk
+          rm -f ~/.ssh/ndi_sdk
+
+          # This path is not free to change: app/build.gradle.kts decides whether
+          # to build the native code at all by testing for
+          # src/main/cpp/ndi/include/Processing.NDI.Lib.h. Clone somewhere else
+          # and the NDK step is skipped silently, and the artefact gate then
+          # fails with "bridge missing" — a path problem wearing an SDK problem's
+          # clothes.
           mkdir -p app/src/main/cpp/ndi/include app/src/main/jniLibs/arm64-v8a
           cp /tmp/ndi-sdk/include/*.h app/src/main/cpp/ndi/include/
           cp /tmp/ndi-sdk/lib/arm64-v8a/libndi_advanced.so app/src/main/jniLibs/arm64-v8a/
           rm -rf /tmp/ndi-sdk
+          test -f app/src/main/cpp/ndi/include/Processing.NDI.Lib.h
+          test -f app/src/main/jniLibs/arm64-v8a/libndi_advanced.so
+          echo "PASS  SDK in place at the path Gradle tests for"
 
       - name: Accept SDK licences
         run: |

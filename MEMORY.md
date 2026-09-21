@@ -8,7 +8,18 @@ Pointers, so a new chat does not search.
 - **The family** — `mantra-ndi` is the broadcast camera, `mantra-ndi-sdk` is the
   licensed SDK both share. This is the third.
 - **The SDK** — private repo `markoboskoauroville/mantra-ndi-sdk`, fetched in CI
-  with `NDI_SDK_TOKEN`. Never committed here; this repository is public.
+  over SSH with `NDI_SDK_DEPLOY_KEY`, the private half of a **read-only deploy
+  key** on that repo. Never committed here; this repository is public.
+  NOT A PERSONAL ACCESS TOKEN, and that was a deliberate change on 21.9.2026
+  before the first build ever ran. A token carries everything its owner can
+  reach; the one on this account has push rights across every repository, and
+  it would have been sitting in a public repo's CI secrets. A deploy key is one
+  keypair on one repository, read-only, separately revocable. If the key ever
+  needs replacing: delete it under mantra-ndi-sdk → Settings → Deploy keys,
+  make a new one, set the secret again. Nothing else is affected.
+  The runner takes GitHub's SSH host keys from `api.github.com/meta` over TLS
+  rather than `ssh-keyscan`, which trusts whatever answers, and rather than a
+  copy pasted into the workflow, which would rot on the day GitHub rotates.
 - **The build** — GitHub Actions only, never a desk. `appVersion` in
   `gradle.properties`, one whole number, one higher than the last release.
 - **The key** — `~/.mantra-ndi-screen-share-signing/` on the Mac, and the

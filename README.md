@@ -97,10 +97,25 @@ is refused. Read the releases first; do not assume.
 |---|---|
 | `SIGNING_KEYSTORE_B64` | the app's permanent PKCS12 key, base64 |
 | `SIGNING_PASSWORD` | its password |
-| `NDI_SDK_TOKEN` | a token that can read `mantra-ndi-sdk` |
+| `NDI_SDK_DEPLOY_KEY` | the private half of a **read-only deploy key** on `mantra-ndi-sdk` |
 
-The key lives in `~/.mantra-ndi-screen-share-signing/` on the Mac and in those
-two secrets, and **nowhere else, ever**. Its fingerprint is pinned in
+A deploy key rather than a personal access token, and the reason is that **this
+repository is public**. A token carries whatever its owner can reach — on this
+account, push rights across every repository — and it would sit in the secret
+store of a public repo's CI. A deploy key is one keypair, on one repository,
+read-only, revocable on its own and good for nothing else. Make it with:
+
+    ssh-keygen -t ed25519 -N "" -C "screen-share CI, read-only" -f ndi_sdk_deploy
+    gh repo deploy-key add ndi_sdk_deploy.pub \
+      --repo markoboskoauroville/mantra-ndi-sdk \
+      --title "mantra-ndi-screen-share CI (read-only)"
+    gh secret set NDI_SDK_DEPLOY_KEY < ndi_sdk_deploy
+    rm ndi_sdk_deploy ndi_sdk_deploy.pub
+
+`deploy-key add` is read-only unless `--allow-write` is given. Do not give it.
+
+The signing key lives in `~/.mantra-ndi-screen-share-signing/` on the Mac and in
+those two secrets, and **nowhere else, ever**. Its fingerprint is pinned in
 `SIGNING_FINGERPRINT.txt` and the workflow compares against it rather than
 merely printing it — a printed fingerprint nobody compares is how a swapped key
 gets through, and a swapped key means no build can ever replace an installed
