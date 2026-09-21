@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NdiScreenShare" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/ink_black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="colorPrimary">@color/amber</item>
+        <item name="android:textColor">@color/sand</item>
+    </style>
+
+    <!-- A chip is the same shape checked or not; only the colour changes,
+         because colour is the state channel (design-language.md §3). -->
+    <style name="Chip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:button">@null</item>
+        <item name="android:background">@drawable/chip_background</item>
+        <item name="android:textColor">@color/chip_text</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:minWidth">0dp</item>
+    </style>
+
+    <style name="RowLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/sand_dim</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <style name="Readout">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/sand</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+</resources>

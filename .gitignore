@@ -1,0 +1,33 @@
+# --- secrets: never commit ---
+*token*
+*.token
+*_token.txt
+.env
+.env.*
+secrets.properties
+local.properties
+gh_token*
+github_token*
+
+# --- NDI SDK: licensed, not ours to redistribute ---
+app/src/main/jniLibs/
+app/src/main/cpp/ndi/
+
+# --- signing: the key lives in repository secrets, never in the tree ---
+signing/
+*.p12
+*.jks
+*.keystore
+
+# --- android / gradle ---
+*.iml
+.gradle/
+.idea/
+.DS_Store
+/build
+app/build/
+/captures
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab

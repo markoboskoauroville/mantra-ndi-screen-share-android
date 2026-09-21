@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- design-language.md §3: the measured palette. Amber is the accent in every
+     app here, and colour is the state channel and the only one. -->
+<resources>
+    <color name="ink_black">#0B0D10</color>
+    <color name="surface">#141A21</color>
+    <color name="slate">#23303D</color>
+    <color name="amber">#F59E0B</color>
+    <color name="amber_bright">#FBBF24</color>
+    <color name="sand">#F2DDB4</color>
+    <color name="sand_dim">#8A8272</color>
+    <color name="red">#EF4444</color>
+</resources>

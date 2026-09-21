@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Every permission here is used by code in this repository, and nothing else is
+  declared. android-app.md: a permission that no code uses is a claim the app
+  cannot back, and the previous NDI build carried several.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- NDI is a network protocol; this is the whole of why the app exists. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- NDI discovery is mDNS over UDP multicast. Android drops multicast
+         packets on Wi-Fi unless something holds a MulticastLock, and without
+         it the phone sends perfectly and no receiver ever finds the source —
+         which reads as "NDI does not work" rather than as a missing lock.
+         ScreenShareService.acquireLocks() holds it for the life of a share. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- The share outlives the screen this app is on, so it is a foreground
+         service, and from 14 the type must be declared as a permission too. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <!-- The notice is how the share is stopped from anywhere. Refusing it does
+         not stop the share; MainActivity says so rather than asking twice. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- A phone that dozes stops encoding, and the source leaves the network
+         without a word. The lock is taken when a share starts and released the
+         moment it ends — never held while idle. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:name=".MantraApp"
+        android:allowBackup="false"
+        android:icon="@android:drawable/ic_menu_share"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.NdiScreenShare">
+
+        <!-- The activity handles a turn of the phone itself. It is not what
+             decides the stream's shape — the service reads the display and
+             rebuilds — but being recreated mid-negotiation with the system's
+             capture dialog has been seen to lose the result. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".ScreenShareService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+    </application>
+</manifest>
