@@ -91,6 +91,9 @@ class ScreenShareService : Service() {
         /** How often the readouts are recomputed. Slow enough to read, fast enough to trust. */
         private const val POLL_MS = 1000L
 
+        /** How often the readout is also written down. */
+        private const val REPORT_MS = 10_000L
+
         @Volatile
         var status: Status = Status()
             private set
@@ -127,6 +130,7 @@ class ScreenShareService : Service() {
 
     private var lastBytes = 0L
     private var lastPollAt = 0L
+    private var lastReportAt = 0L
     private var measured = 0L
     private var fault = ""
 
@@ -473,6 +477,24 @@ class ScreenShareService : Service() {
                 lastBytes = bytes
                 lastPollAt = now
                 publishStatus()
+
+                // A line in the trace every ten seconds, with the rate, the
+                // frame count and how many of those frames the screen did not
+                // draw. This is the only instrument that reaches a phone with
+                // no cable on it: Export writes it to Downloads, and the answer
+                // to "why is it 6 frames a second" is then a fact rather than a
+                // guess. uiautomator cannot be used for this - the trace view
+                // updates every second, so the screen is never idle and the
+                // dump quietly hands back the previous one.
+                if (now - lastReportAt >= REPORT_MS) {
+                    lastReportAt = now
+                    val repeats = (p as? CompressedPipeline)?.repeated ?: 0L
+                    Trace.state(
+                        "sending ${Mechanism.megabits(measured)}  " +
+                            "${p.framesSent} frames" +
+                            if (repeats > 0) "  ($repeats repeated on a still screen)" else ""
+                    )
+                }
             }
             main.postDelayed(this, POLL_MS)
         }

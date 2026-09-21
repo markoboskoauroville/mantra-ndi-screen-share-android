@@ -295,6 +295,28 @@ def main():
           read("app/src/main/AndroidManifest.xml"))
     check("G16 the dialog holder asks once", "savedInstanceState == null" in tile_activity)
 
+    # ---------------------------------------------------------------- G18
+    # A still screen must still be a stream. KEY_REPEAT_PREVIOUS_FRAME_AFTER is
+    # the hint that is supposed to do it and G8 checks it is set - but the
+    # emulator's software encoder ignores it completely, and a still screen then
+    # produces NOTHING at all, which a receiver reads as a dead source. The
+    # keep-alive is the floor under that.
+    pipelines = code_only(read(f"{PKG}/Pipelines.kt"))
+    check("G18 a still screen is kept alive", "lastKeyframe" in pipelines
+          and "heartbeat" in pipelines)
+    # A KEYFRAME, never a P-frame: an IDR decodes to the same picture however
+    # many times it is sent, a repeated P-frame drifts the decoder.
+    check("G18 what is repeated is a keyframe",
+          "isKeyframe = true" in pipelines)
+    # And slowly. Repeating at the full frame rate was MEASURED at 20.1 Mbit/s
+    # against a 4.0 Mbit/s budget, because a keyframe is about 105 KB.
+    check("G18 the keep-alive is slow, not a full-rate repeat",
+          "quietMs = 1000L" in pipelines)
+    # The trace has to carry the rate, or none of this can be checked on a phone
+    # with no cable on it - uiautomator cannot dump a screen that never idles.
+    check("G18 the rate is written into the trace",
+          "REPORT_MS" in service and "repeated on a still screen" in service)
+
     # ---------------------------------------------------------------- G17
     # ONE VirtualDisplay per MediaProjection. From Android 14 a second one on
     # the same projection throws SecurityException, and the share dies on the

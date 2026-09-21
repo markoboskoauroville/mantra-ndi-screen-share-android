@@ -70,6 +70,61 @@ class CompressedPipeline(
     val mime: String =
         if (useHevc) MediaFormat.MIMETYPE_VIDEO_HEVC else MediaFormat.MIMETYPE_VIDEO_AVC
 
+    /**
+     * The last keyframe, kept so that a still screen is still a stream.
+     *
+     * KEY_REPEAT_PREVIOUS_FRAME_AFTER is meant to make this unnecessary: a
+     * virtual display draws only when something changes, so the encoder is
+     * asked to repeat its last frame when nothing arrives within a frame
+     * period. On the emulator's software encoder, c2.android.avc.encoder, it
+     * does nothing whatever — MEASURED 21.9.2026, a still screen produced
+     * **0 frames in 10 seconds** with the counter stuck at 51. Marko's own
+     * report was the same shape from a real Pixel 7: a stopwatch went out at
+     * 6.3 fps where an NDI HX Camera on the same phone managed 29.2.
+     *
+     * So this is a floor under that hint, not a replacement for it, and it is
+     * deliberately a slow floor. If the encoder does repeat, the heartbeat
+     * never fires at all, because its only condition is that nothing has gone
+     * out for a whole second.
+     *
+     * It does NOT make a still screen arrive at 30 fps, and it is not meant to.
+     * A screen source sends what the screen draws; a camera sends 30 because a
+     * sensor produces 30. What this guarantees is only that the stream never
+     * looks stalled.
+     *
+     * A KEYFRAME is what is repeated, never a P-frame. An IDR is a whole
+     * picture and decodes to the same thing however many times it is sent; a
+     * repeated P-frame would advance a decoder's state against a picture that
+     * never changed, and the image would drift away from the truth.
+     */
+    @Volatile private var lastKeyframe: ByteArray? = null
+    @Volatile private var lastSentAtMs = 0L
+    private var heartbeat: Handler? = null
+
+    /** How many frames the screen did not produce. Said in the trace on stop. */
+    @Volatile
+    var repeated: Long = 0
+        private set
+
+    /**
+     * How long a stream may be silent before a frame is repeated: one second.
+     *
+     * NOT one frame period, and the difference is measured. Repeating at the
+     * full rate gave a still screen 24.2 fps and **20.1 Mbit/s against a 4.0
+     * Mbit/s budget** — five times over, because what is being repeated is a
+     * whole keyframe of about 105 KB. A screen share that costs five times its
+     * own budget while nothing is happening is worse than the problem it fixes.
+     *
+     * One second keeps a receiver's clock moving, which is the thing that
+     * matters: a stream whose timestamps have stopped is read as stalled and
+     * eventually dropped. It costs about 0.8 Mbit/s on a completely still
+     * screen and exactly nothing on a moving one.
+     */
+    private val quietMs = 1000L
+
+    /** How often the silence is checked. */
+    private val checkMs = 250L
+
     override fun start() {
         thread.start()
 
@@ -111,9 +166,42 @@ class CompressedPipeline(
         NdiSender.setVideoFormat(plan.width, plan.height, plan.fps, 1)
         Trace.step("encoder started: $mime ${plan.width}x${plan.height} @${plan.fps} " +
             "${Mechanism.megabits(plan.bitrate.toLong())}")
+
+        lastSentAtMs = SystemClock.elapsedRealtime()
+        heartbeat = Handler(thread.looper).also { it.post(tick) }
+    }
+
+    /**
+     * Sends the last keyframe again when the encoder has gone quiet.
+     *
+     * The gap has to be longer than one period, or a stream running exactly at
+     * rate would race this and slip a duplicate in between every pair of real
+     * frames. One and a half periods is clear of both.
+     */
+    private val tick = object : Runnable {
+        override fun run() {
+            val key = lastKeyframe
+            val quiet = SystemClock.elapsedRealtime() - lastSentAtMs
+            if (key != null && quiet >= quietMs) {
+                // The presentation time must keep moving. A stream whose clock
+                // has stopped is read by a receiver as a stalled stream, which
+                // is the very thing this exists to prevent.
+                val ptsUs = SystemClock.elapsedRealtimeNanos() / 1000 - startedAtUs
+                NdiSender.sendCompressed(key, isKeyframe = true, ptsUs = ptsUs, isHevc = useHevc)
+                bytesSent += key.size
+                framesSent++
+                lastSentAtMs = SystemClock.elapsedRealtime()
+                repeated++
+            }
+            heartbeat?.postDelayed(this, checkMs)
+        }
     }
 
     override fun stop() {
+        heartbeat?.removeCallbacksAndMessages(null)
+        heartbeat = null
+        if (repeated > 0) Trace.state("still-screen frames repeated: $repeated")
+        lastKeyframe = null
         val c = codec
         codec = null
         try {
@@ -178,6 +266,8 @@ class CompressedPipeline(
                     )
                     bytesSent += frame.size
                     framesSent++
+                    lastSentAtMs = SystemClock.elapsedRealtime()
+                    if (keyframe) lastKeyframe = frame
                 }
                 c.releaseOutputBuffer(index, false)
             } catch (t: Throwable) {
