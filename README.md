@@ -63,11 +63,13 @@ START, then STOP.
 Under the controls, the state panel, which is the whole point of having built
 the trace first:
 
-    sending   "Pixel 7 Screen"
-    1080 × 2400 portrait @ 30
-    8.4 Mbit/s   1129 frames
-    receivers: 1
-    this phone is 192.168.1.47
+```
+sending   "Pixel 7 Screen"
+1080 × 2400 portrait @ 30
+8.4 Mbit/s   1129 frames
+receivers: 1
+this phone is 192.168.1.47
+```
 
 **`receivers:` is the only honest answer to "is anybody seeing this?"** A source
 advertises itself whether or not anyone is watching, so a green light that means
@@ -81,12 +83,14 @@ always two machines on two networks, and the phone is the one nobody can check.
 ([android-app.md §1a](https://github.com/markoboskoauroville/MANTRA_MANIFEST)).
 There is no local Android SDK and there is not meant to be one.
 
-    1  edit
-    2  python3 scripts/verify.py          the gates a compiler will not run
-    3  bump appVersion in gradle.properties
-    4  commit and push
-    5  gh run watch                       about five minutes
-    6  the APK is at releases/latest
+```
+1  edit
+2  python3 scripts/verify.py          the gates a compiler will not run
+3  bump appVersion in gradle.properties
+4  commit and push
+5  gh run watch                       about five minutes
+6  the APK is at releases/latest
+```
 
 `appVersion` must be **one higher than the last released version** or the build
 is refused. Read the releases first; do not assume.
@@ -105,12 +109,14 @@ account, push rights across every repository — and it would sit in the secret
 store of a public repo's CI. A deploy key is one keypair, on one repository,
 read-only, revocable on its own and good for nothing else. Make it with:
 
-    ssh-keygen -t ed25519 -N "" -C "screen-share CI, read-only" -f ndi_sdk_deploy
-    gh repo deploy-key add ndi_sdk_deploy.pub \
-      --repo markoboskoauroville/mantra-ndi-sdk \
-      --title "mantra-ndi-screen-share CI (read-only)"
-    gh secret set NDI_SDK_DEPLOY_KEY < ndi_sdk_deploy
-    rm ndi_sdk_deploy ndi_sdk_deploy.pub
+```
+ssh-keygen -t ed25519 -N "" -C "screen-share CI, read-only" -f ndi_sdk_deploy
+gh repo deploy-key add ndi_sdk_deploy.pub \
+  --repo markoboskoauroville/mantra-ndi-sdk \
+  --title "mantra-ndi-screen-share CI (read-only)"
+gh secret set NDI_SDK_DEPLOY_KEY < ndi_sdk_deploy
+rm ndi_sdk_deploy ndi_sdk_deploy.pub
+```
 
 `deploy-key add` is read-only unless `--allow-write` is given. Do not give it.
 
@@ -121,7 +127,9 @@ merely printing it — a printed fingerprint nobody compares is how a swapped ke
 gets through, and a swapped key means no build can ever replace an installed
 one.
 
-    4d4b7d8f198ea1cd25dfaea4bfbddbbb5bedc8e7c7fa03a635c594627fa18b77
+```
+4d4b7d8f198ea1cd25dfaea4bfbddbbb5bedc8e7c7fa03a635c594627fa18b77
+```
 
 ### The SDK
 
