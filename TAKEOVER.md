@@ -1,3 +1,7 @@
+
+
+## From the former README (9.11.2026)
+
 # Mantra NDI Screen Share (Android)
 
 ### ▸ [Download the latest build](https://github.com/markoboskoauroville/mantra-ndi-screen-share-android/releases/latest)
